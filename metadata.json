@@ -1,0 +1,6 @@
+{
+  "name": "Blox Fruit Services Discord Booking Bot",
+  "description": "Discord booking bot for Blox Fruit Services with 50/50 and upfront payments, multi-item fruit/gamepass offers, SQLite persistence, and staff order threads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
