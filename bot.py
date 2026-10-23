@@ -69,7 +69,8 @@ class BloxFruitBot(commands.Bot):
         if failed_cogs:
             error_details = "\n".join([f"• {c}: {err}" for c, err in failed_cogs])
             logger.critical("Startup aborted. The following required cogs failed to load:\n%s", error_details)
-            raise RuntimeError(f"Startup aborted due to failed cogs: {failed_cogs}")
+            await self.close()
+            raise SystemExit(f"Startup aborted due to failed cogs: {failed_cogs}")
 
         # Sync slash commands
         if Config.GUILD_ID:
@@ -105,7 +106,14 @@ def main():
         sys.exit(1)
 
     bot = BloxFruitBot()
-    bot.run(Config.BOT_TOKEN, log_handler=None)
+    try:
+        bot.run(Config.BOT_TOKEN, log_handler=None)
+    except (SystemExit, KeyboardInterrupt):
+        logger.info("Bot process exited.")
+        sys.exit(1)
+    except Exception as exc:
+        logger.critical("Bot terminated unexpectedly: %s", exc, exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

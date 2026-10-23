@@ -299,6 +299,10 @@ class StaffOrderThreadView(discord.ui.View):
 
     @discord.ui.button(label="Accept Order", style=discord.ButtonStyle.green, emoji="✅", row=0)
     async def accept_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
+
         order = await db.get_order(self.order_id)
         if not order:
             await interaction.response.send_message("Order not found.", ephemeral=True)
@@ -354,11 +358,17 @@ class StaffOrderThreadView(discord.ui.View):
 
     @discord.ui.button(label="Record Upfront Deposit", style=discord.ButtonStyle.primary, emoji="💰", row=0)
     async def record_deposit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
         modal = RecordPaymentModal(order_id=self.order_id, stage="UPFRONT", parent_view=self)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Start Service", style=discord.ButtonStyle.primary, emoji="⚔️", row=0)
     async def start_service_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
         order = await db.get_order(self.order_id)
         if not order:
             await interaction.response.send_message("Order not found.", ephemeral=True)
@@ -394,6 +404,10 @@ class StaffOrderThreadView(discord.ui.View):
 
     @discord.ui.button(label="Mark Completed", style=discord.ButtonStyle.green, emoji="🎉", row=1)
     async def mark_completed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
+
         order = await db.get_order(self.order_id)
         if not order:
             await interaction.response.send_message("Order not found.", ephemeral=True)
@@ -458,16 +472,25 @@ class StaffOrderThreadView(discord.ui.View):
 
     @discord.ui.button(label="Record Balance Payment", style=discord.ButtonStyle.primary, emoji="💳", row=1)
     async def record_balance_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
         modal = RecordPaymentModal(order_id=self.order_id, stage="BALANCE", parent_view=self)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Request Info", style=discord.ButtonStyle.secondary, emoji="❓", row=2)
     async def request_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
         modal = RequestInfoModal(order_id=self.order_id)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Cancel / Reject", style=discord.ButtonStyle.danger, emoji="❌", row=2)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
         modal = CancelOrderModal(order_id=self.order_id)
         await interaction.response.send_modal(modal)
 

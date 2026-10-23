@@ -86,10 +86,12 @@ class PaymentBreakdown:
 
 
 def to_decimal(val: Union[Decimal, float, int, str]) -> Decimal:
-    """Safely converts input to Decimal with 2 decimal places."""
+    """Safely converts input to Decimal with 2 decimal places using ROUND_HALF_UP."""
     if isinstance(val, Decimal):
-        return val.quantize(TWOPLACES)
-    return Decimal(str(val)).quantize(TWOPLACES)
+        return val.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+    if isinstance(val, float):
+        return Decimal(f"{val:.6f}").quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+    return Decimal(str(val).strip()).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
 
 
 def calculate_payment(

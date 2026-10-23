@@ -19,10 +19,19 @@ ENV/
 .venv/
 .pytest_cache/
 
-# SQLite database persistence (do not commit user order database)
+# SQLite database persistence (throughout entire repository)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 data/*.db
-data/*.sqlite3
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+data/*.sqlite*
+data/*.db-*
+**/*.db
+**/*.sqlite*
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
 
