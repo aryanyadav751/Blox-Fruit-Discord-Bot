@@ -1,15 +1,34 @@
 """
 Blox Fruit Services - SQLite Persistence Engine.
 Stores orders, payment verification records, audit history, and configuration.
-Uses standard sqlite3 with thread-safe connection pooling for maximum reliability across hosts.
+Features:
+- Fixed-point Decimal precision support
+- Order state machine transition validation
+- Strict payment validation (prevents over-crediting, invalid stages, duplicate payments)
+- Transactional integrity and audit logging
 """
 
 import sqlite3
 import asyncio
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from config import Config
+from core.calculator import to_decimal, TWOPLACES
+
+
+# State Machine: Valid Status Transitions
+ALLOWED_TRANSITIONS = {
+    "PENDING_ACCEPTANCE": ["AWAITING_UPFRONT_PAYMENT", "CANCELLED", "REJECTED"],
+    "AWAITING_UPFRONT_PAYMENT": ["UPFRONT_VERIFIED", "CANCELLED", "REJECTED"],
+    "UPFRONT_VERIFIED": ["IN_PROGRESS", "CANCELLED"],
+    "IN_PROGRESS": ["COMPLETED_AWAITING_BALANCE", "PAID_AND_CLOSED", "CANCELLED"],
+    "COMPLETED_AWAITING_BALANCE": ["PAID_AND_CLOSED", "CANCELLED"],
+    "PAID_AND_CLOSED": [],
+    "CANCELLED": [],
+    "REJECTED": [],
+}
 
 
 class Database:
@@ -110,7 +129,7 @@ class Database:
                 return f"BFS-{next_seq}"
 
     def get_next_order_id_sync(self) -> str:
-        """Synchronous variant for unit testing."""
+        """Synchronous variant for testing."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT value FROM bot_config WHERE key = 'last_order_seq';")
@@ -139,16 +158,20 @@ class Database:
         category_id: str,
         service_id: str,
         service_name: str,
-        total_price_m: float,
+        total_price_m: float | Decimal,
         payment_plan: str,
-        initial_payment_required_m: float,
-        balance_remaining_m: float,
+        initial_payment_required_m: float | Decimal,
+        balance_remaining_m: float | Decimal,
         payment_methods: str,
         proposed_items: str,
         customer_availability: str,
         status: str = "PENDING_ACCEPTANCE",
     ) -> Dict[str, Any]:
-        """Inserts a new order and initial audit entry."""
+        """Inserts a new order and initial audit entry with exact Decimal rounding."""
+        tot = float(to_decimal(total_price_m))
+        init_req = float(to_decimal(initial_payment_required_m))
+        bal_req = float(to_decimal(balance_remaining_m))
+
         async with self._lock:
             with self._get_connection() as conn:
                 cur = conn.cursor()
@@ -171,10 +194,10 @@ class Database:
                         category_id,
                         service_id,
                         service_name,
-                        total_price_m,
+                        tot,
                         payment_plan,
-                        initial_payment_required_m,
-                        balance_remaining_m,
+                        init_req,
+                        bal_req,
                         payment_methods,
                         proposed_items,
                         customer_availability,
@@ -192,7 +215,7 @@ class Database:
                         order_id,
                         customer_id,
                         customer_tag,
-                        f"Order created with plan {payment_plan} for {service_name} ({total_price_m}M)",
+                        f"Order created with plan {payment_plan} for {service_name} ({tot}M)",
                     ),
                 )
                 conn.commit()
@@ -240,10 +263,28 @@ class Database:
         actor_tag: str,
         details: str = "",
         assigned_staff_id: Optional[int] = None,
+        force: bool = False,
     ) -> Optional[Dict[str, Any]]:
+        """
+        Validates transition against ALLOWED_TRANSITIONS state machine before updating.
+        """
         async with self._lock:
             with self._get_connection() as conn:
                 cur = conn.cursor()
+                cur.execute("SELECT * FROM orders WHERE order_id = ?;", (order_id,))
+                order = cur.fetchone()
+                if not order:
+                    raise ValueError(f"Order {order_id} not found.")
+
+                current_status = order["status"]
+                # State machine validation
+                if not force and current_status != new_status:
+                    allowed = ALLOWED_TRANSITIONS.get(current_status, [])
+                    if new_status not in allowed:
+                        raise ValueError(
+                            f"Invalid status transition from {current_status} to {new_status}. Allowed: {allowed}"
+                        )
+
                 now = datetime.utcnow().isoformat()
                 if assigned_staff_id is not None:
                     cur.execute(
@@ -280,22 +321,89 @@ class Database:
         order_id: str,
         payment_stage: str,  # 'UPFRONT' or 'BALANCE'
         items_received: str,
-        credited_value_m: float,
+        credited_value_m: float | Decimal,
         staff_id: int,
         staff_tag: str,
         notes: str = "",
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
-        Records verified payment items and credited M value.
-        Updates order totals and advances status.
+        Validates payment stage, prevents over-crediting, duplicate payments,
+        and advances order status appropriately.
         """
+        credit_dec = to_decimal(credited_value_m)
+        if credit_dec <= Decimal("0"):
+            raise ValueError("Credited trade value must be greater than 0M.")
+
+        clean_stage = payment_stage.strip().upper()
+        if clean_stage not in ["UPFRONT", "BALANCE"]:
+            raise ValueError(f"Invalid payment stage '{payment_stage}'. Expected 'UPFRONT' or 'BALANCE'.")
+
         async with self._lock:
             with self._get_connection() as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT * FROM orders WHERE order_id = ?;", (order_id,))
                 order = cur.fetchone()
                 if not order:
-                    return None
+                    raise ValueError(f"Order {order_id} not found.")
+
+                status = order["status"]
+                if status in ["CANCELLED", "REJECTED", "PAID_AND_CLOSED"]:
+                    raise ValueError(f"Cannot record payment for an order with status {status}.")
+
+                plan = order["payment_plan"]
+                initial_req = to_decimal(order["initial_payment_required_m"])
+                initial_paid = to_decimal(order["initial_payment_paid_m"])
+                balance_req = to_decimal(order["balance_remaining_m"])
+                balance_paid = to_decimal(order["balance_paid_m"])
+
+                # Check for duplicate payment submission within 10 seconds
+                cur.execute(
+                    """
+                    SELECT payment_id FROM payments
+                    WHERE order_id = ? AND payment_stage = ? AND credited_value_m = ?
+                    AND datetime(recorded_at) >= datetime('now', '-10 seconds');
+                    """,
+                    (order_id, clean_stage, float(credit_dec)),
+                )
+                if cur.fetchone():
+                    raise ValueError("Duplicate payment detected within 10 seconds. Action blocked.")
+
+                if clean_stage == "UPFRONT":
+                    if initial_paid >= initial_req:
+                        raise ValueError(f"Upfront payment is already fully satisfied ({initial_paid}M / {initial_req}M).")
+
+                    new_initial_paid = initial_paid + credit_dec
+                    # Status advances to UPFRONT_VERIFIED if satisfied
+                    new_status = "UPFRONT_VERIFIED"
+                    cur.execute(
+                        """
+                        UPDATE orders
+                        SET initial_payment_paid_m = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE order_id = ?;
+                        """,
+                        (float(new_initial_paid), new_status, order_id),
+                    )
+
+                else:  # BALANCE
+                    if plan == "FULL_UPFRONT":
+                        raise ValueError("Cannot record remaining balance for a One-Time Full Payment plan (remaining balance is 0M).")
+
+                    if initial_paid < initial_req:
+                        raise ValueError("Cannot record remaining balance before initial upfront deposit is paid.")
+
+                    if balance_paid >= balance_req:
+                        raise ValueError(f"Remaining balance is already fully satisfied ({balance_paid}M / {balance_req}M).")
+
+                    new_balance_paid = balance_paid + credit_dec
+                    new_status = "PAID_AND_CLOSED"
+                    cur.execute(
+                        """
+                        UPDATE orders
+                        SET balance_paid_m = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE order_id = ?;
+                        """,
+                        (float(new_balance_paid), new_status, order_id),
+                    )
 
                 # Insert payment log
                 cur.execute(
@@ -307,44 +415,16 @@ class Database:
                     """,
                     (
                         order_id,
-                        payment_stage,
-                        items_received,
-                        credited_value_m,
+                        clean_stage,
+                        items_received.strip(),
+                        float(credit_dec),
                         staff_id,
                         staff_tag,
-                        notes,
+                        notes.strip() if notes else "",
                     ),
                 )
 
-                now = datetime.utcnow().isoformat()
-                if payment_stage == "UPFRONT":
-                    new_initial_paid = round(float(order["initial_payment_paid_m"]) + credited_value_m, 2)
-                    # If full upfront plan, and paid >= total, mark FULLY_PAID
-                    if order["payment_plan"] == "FULL_UPFRONT":
-                        new_status = "UPFRONT_VERIFIED"
-                    else:
-                        new_status = "UPFRONT_VERIFIED"
-
-                    cur.execute(
-                        """
-                        UPDATE orders
-                        SET initial_payment_paid_m = ?, status = ?, updated_at = ?
-                        WHERE order_id = ?;
-                        """,
-                        (new_initial_paid, new_status, now, order_id),
-                    )
-                else:  # BALANCE
-                    new_balance_paid = round(float(order["balance_paid_m"]) + credited_value_m, 2)
-                    new_status = "PAID_AND_CLOSED"
-                    cur.execute(
-                        """
-                        UPDATE orders
-                        SET balance_paid_m = ?, status = ?, updated_at = ?
-                        WHERE order_id = ?;
-                        """,
-                        (new_balance_paid, new_status, now, order_id),
-                    )
-
+                # Insert audit log
                 cur.execute(
                     """
                     INSERT INTO audit_logs (order_id, action, actor_id, actor_tag, details)
@@ -354,7 +434,7 @@ class Database:
                         order_id,
                         staff_id,
                         staff_tag,
-                        f"Recorded {credited_value_m}M for stage {payment_stage}. Items: {items_received}",
+                        f"Stage {clean_stage}: credited {credit_dec}M for items: {items_received}",
                     ),
                 )
                 conn.commit()
@@ -363,11 +443,19 @@ class Database:
 
     async def cancel_order(
         self, order_id: str, actor_id: int, actor_tag: str, reason: str, is_rejection: bool = False
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         status = "REJECTED" if is_rejection else "CANCELLED"
         async with self._lock:
             with self._get_connection() as conn:
                 cur = conn.cursor()
+                cur.execute("SELECT status FROM orders WHERE order_id = ?;", (order_id,))
+                row = cur.fetchone()
+                if not row:
+                    raise ValueError(f"Order {order_id} not found.")
+
+                if row["status"] in ["PAID_AND_CLOSED", "CANCELLED", "REJECTED"]:
+                    raise ValueError(f"Order is already in a terminal state: {row['status']}.")
+
                 now = datetime.utcnow().isoformat()
                 cur.execute(
                     """
@@ -375,14 +463,14 @@ class Database:
                     SET status = ?, cancellation_reason = ?, updated_at = ?
                     WHERE order_id = ?;
                     """,
-                    (status, reason, now, order_id),
+                    (status, reason.strip(), now, order_id),
                 )
                 cur.execute(
                     """
                     INSERT INTO audit_logs (order_id, action, actor_id, actor_tag, details)
                     VALUES (?, ?, ?, ?, ?);
                     """,
-                    (order_id, f"ORDER_{status}", actor_id, actor_tag, f"Reason: {reason}"),
+                    (order_id, f"ORDER_{status}", actor_id, actor_tag, f"Reason: {reason.strip()}"),
                 )
                 conn.commit()
 

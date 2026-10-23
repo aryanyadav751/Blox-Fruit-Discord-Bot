@@ -19,7 +19,7 @@ from config import Config
 from core.calculator import format_m
 from core.catalog import catalog
 from core.database import db
-from cogs.staff_controls import is_staff
+from core.permissions import is_staff
 from cogs.ordering import PublicOrderPanelView
 
 

@@ -45,8 +45,18 @@ class Config:
     ADMIN_ROLE_ID: int = int(os.getenv("ADMIN_ROLE_ID", "0"))
 
     # File storage paths
-    DATABASE_PATH: Path = BASE_DIR / os.getenv("DATABASE_PATH", "data/blox_fruits.db")
-    CATALOG_PATH: Path = BASE_DIR / os.getenv("CATALOG_PATH", "data/catalog.json")
+    _raw_db = os.getenv("DATABASE_PATH", "data/blox_fruits.db")
+    DATABASE_PATH: Path = BASE_DIR / _raw_db if not Path(_raw_db).is_absolute() else Path(_raw_db)
+
+    _raw_cat = os.getenv("CATALOG_PATH", "data/catalog.json")
+    if (BASE_DIR / _raw_cat).exists():
+        CATALOG_PATH: Path = BASE_DIR / _raw_cat
+    elif (BASE_DIR / "data" / Path(_raw_cat).name).exists():
+        CATALOG_PATH: Path = BASE_DIR / "data" / Path(_raw_cat).name
+    elif (BASE_DIR / "data/catalog.json").exists():
+        CATALOG_PATH: Path = BASE_DIR / "data/catalog.json"
+    else:
+        CATALOG_PATH: Path = BASE_DIR / "catalog.json"
 
     @classmethod
     def validate(cls) -> list[str]:

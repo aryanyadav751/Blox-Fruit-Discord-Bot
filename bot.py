@@ -1,11 +1,13 @@
 """
 Blox Fruit Services - Discord Bot Main Entry Point.
 Runs discord.py with slash command tree, persistent interactive views, and modular cogs.
+Enforces fail-safe startup: halts if any required cog fails to load.
 """
 
 import asyncio
 import logging
 import sys
+import traceback
 import discord
 from discord.ext import commands
 
@@ -23,6 +25,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("BloxFruitBot")
 
+# Required cogs for essential bot operation
+REQUIRED_COGS = [
+    "cogs.ordering",
+    "cogs.staff_controls",
+    "cogs.admin_commands",
+]
+
 
 class BloxFruitBot(commands.Bot):
     def __init__(self):
@@ -35,26 +44,32 @@ class BloxFruitBot(commands.Bot):
 
     async def setup_hook(self):
         logger.info("Initializing database and catalog...")
-        db.init_db()
-        catalog.load()
+        try:
+            db.init_db()
+            catalog.load()
+        except Exception as e:
+            logger.critical("Failed to initialize database or catalog: %s", e, exc_info=True)
+            raise SystemExit(f"Fatal Startup Error: Could not initialize database or catalog: {e}")
 
         # Register persistent views so buttons continue working after bot restarts
         self.add_view(PublicOrderPanelView())
         logger.info("Registered persistent views.")
 
-        # Load extension cogs
-        cogs_to_load = [
-            "cogs.ordering",
-            "cogs.staff_controls",
-            "cogs.admin_commands",
-        ]
-
-        for cog in cogs_to_load:
+        # Load extension cogs - fail safely if any required cog fails
+        failed_cogs = []
+        for cog in REQUIRED_COGS:
             try:
                 await self.load_extension(cog)
-                logger.info("Loaded cog: %s", cog)
+                logger.info("Loaded required cog: %s", cog)
             except Exception as e:
-                logger.error("Failed to load cog %s: %s", cog, e)
+                logger.critical("FATAL: Failed to load required cog '%s': %s", cog, e)
+                logger.error(traceback.format_exc())
+                failed_cogs.append((cog, str(e)))
+
+        if failed_cogs:
+            error_details = "\n".join([f"• {c}: {err}" for c, err in failed_cogs])
+            logger.critical("Startup aborted. The following required cogs failed to load:\n%s", error_details)
+            raise RuntimeError(f"Startup aborted due to failed cogs: {failed_cogs}")
 
         # Sync slash commands
         if Config.GUILD_ID:

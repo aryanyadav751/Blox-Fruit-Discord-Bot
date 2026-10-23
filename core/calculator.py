@@ -1,16 +1,20 @@
 """
 Blox Fruit Services - Payment Calculator & Rounding Rules.
+Uses Python Decimal for exact fixed-point precision (avoiding floating point errors).
 Calculates initial deposits and remaining balances for:
 1. 50/50 Payment (50% upfront, 50% on completion)
 2. One-Time Full Payment (100% upfront, 0M balance)
 
-Guarantees the mathematical invariant:
-    initial_amount + remaining_amount == total_amount
+Guarantees exact mathematical invariant:
+    initial_payment_m + remaining_balance_m == total_price_m
 """
 
-from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
-from typing import Tuple
+from typing import Union
+
+
+TWOPLACES = Decimal("0.01")
 
 
 class PaymentPlan(str, Enum):
@@ -47,45 +51,70 @@ class PaymentMethod(str, Enum):
         return "🍎+🎟️ Combination of Fruits & Gamepasses"
 
 
-@dataclass(frozen=True)
 class PaymentBreakdown:
-    total_price_m: float
-    plan: PaymentPlan
-    initial_payment_m: float
-    remaining_balance_m: float
+    def __init__(
+        self,
+        total_price_m: Decimal,
+        plan: PaymentPlan,
+        initial_payment_m: Decimal,
+        remaining_balance_m: Decimal,
+    ):
+        self.total_price_m = total_price_m.quantize(TWOPLACES)
+        self.plan = plan
+        self.initial_payment_m = initial_payment_m.quantize(TWOPLACES)
+        self.remaining_balance_m = remaining_balance_m.quantize(TWOPLACES)
 
-    def __post_init__(self):
-        # Strict validation of invariant
-        combined = round(self.initial_payment_m + self.remaining_balance_m, 2)
-        expected = round(self.total_price_m, 2)
-        if combined != expected:
+        # Invariant verification
+        combined = (self.initial_payment_m + self.remaining_balance_m).quantize(TWOPLACES)
+        if combined != self.total_price_m:
             raise ValueError(
                 f"Calculation error: initial ({self.initial_payment_m}) + "
-                f"remaining ({self.remaining_balance_m}) = {combined} does not equal total ({expected})"
+                f"remaining ({self.remaining_balance_m}) = {combined} does not equal total ({self.total_price_m})"
             )
 
+    @property
+    def total_price_float(self) -> float:
+        return float(self.total_price_m)
 
-def calculate_payment(total_price_m: float, plan: PaymentPlan | str) -> PaymentBreakdown:
+    @property
+    def initial_payment_float(self) -> float:
+        return float(self.initial_payment_m)
+
+    @property
+    def remaining_balance_float(self) -> float:
+        return float(self.remaining_balance_m)
+
+
+def to_decimal(val: Union[Decimal, float, int, str]) -> Decimal:
+    """Safely converts input to Decimal with 2 decimal places."""
+    if isinstance(val, Decimal):
+        return val.quantize(TWOPLACES)
+    return Decimal(str(val)).quantize(TWOPLACES)
+
+
+def calculate_payment(
+    total_price: Union[Decimal, float, int, str],
+    plan: Union[PaymentPlan, str],
+) -> PaymentBreakdown:
     """
-    Calculates initial payment and remaining balance.
+    Calculates initial payment and remaining balance using fixed-point Decimal precision.
     Guarantees initial + remaining == total.
     """
     if isinstance(plan, str):
         plan = PaymentPlan.from_input(plan)
 
-    if total_price_m < 0:
+    total = to_decimal(total_price)
+    if total < Decimal("0"):
         raise ValueError("Total price cannot be negative.")
-
-    total = round(float(total_price_m), 2)
 
     if plan == PaymentPlan.FULL_UPFRONT:
         initial = total
-        remaining = 0.0
+        remaining = Decimal("0.00")
     elif plan == PaymentPlan.SPLIT_50_50:
-        # Round upfront deposit to 2 decimal places
-        initial = round(total / 2.0, 2)
-        # Remaining balance is strictly the difference to prevent any rounding drift
-        remaining = round(total - initial, 2)
+        # Split in half with ROUND_HALF_UP
+        initial = (total / Decimal("2")).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+        # Remaining balance is strictly total - initial to guarantee exact invariant
+        remaining = total - initial
     else:
         raise ValueError(f"Unsupported plan: {plan}")
 
@@ -97,9 +126,14 @@ def calculate_payment(total_price_m: float, plan: PaymentPlan | str) -> PaymentB
     )
 
 
-def format_m(amount_m: float) -> str:
+def format_m(amount: Union[Decimal, float, int, str]) -> str:
     """Formats an amount in M for Discord embeds and user messages."""
-    val = round(amount_m, 2)
-    if val.is_integer():
-        return f"{int(val)}M"
-    return f"{val:g}M"
+    dec = to_decimal(amount)
+    # If ends with .00, format as integer
+    if dec == dec.to_integral_value():
+        return f"{int(dec)}M"
+    # Normalize trailing zeros (e.g. 37.50 -> 37.5)
+    normalized = dec.normalize()
+    # Format cleanly without exponential notation
+    formatted = f"{dec:.2f}".rstrip("0").rstrip(".")
+    return f"{formatted}M"

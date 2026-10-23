@@ -1,0 +1,596 @@
+{
+  "version": "1.0.0",
+  "currency_label": "M estimated trade value",
+  "categories": [
+    {
+      "id": "trials",
+      "name": "Trials (V4 Awakening)",
+      "description": "V4 race trial carries and gear progression",
+      "services": [
+        {
+          "id": "trials_1",
+          "name": "1 Trial",
+          "price_m": 45.0,
+          "description": "Completion of 1 V4 trial carry.",
+          "prerequisites": "Must have Mirror Fractal and base V3 race.",
+          "status": "active"
+        },
+        {
+          "id": "trials_2",
+          "name": "2 Trials",
+          "price_m": 85.0,
+          "description": "Completion of 2 V4 trials.",
+          "prerequisites": "Must have Mirror Fractal and base V3 race.",
+          "status": "active"
+        },
+        {
+          "id": "trials_3",
+          "name": "3 Trials",
+          "price_m": 120.0,
+          "description": "Completion of 3 V4 trials.",
+          "prerequisites": "Must have Mirror Fractal and base V3 race.",
+          "status": "active"
+        },
+        {
+          "id": "trials_4",
+          "name": "4 Trials",
+          "price_m": 160.0,
+          "description": "Completion of 4 V4 trials.",
+          "prerequisites": "Must have Mirror Fractal and base V3 race.",
+          "status": "draft",
+          "notes": "Verify handwritten rate of 160M before publishing."
+        },
+        {
+          "id": "trials_5",
+          "name": "5 Trials",
+          "price_m": 170.0,
+          "description": "Completion of 5 V4 trials.",
+          "prerequisites": "Must have Mirror Fractal and base V3 race.",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "materials",
+      "name": "Material Drops (NPC)",
+      "description": "Material drop farming and collection",
+      "services": [
+        {
+          "id": "mat_vampire_fang",
+          "name": "Vampire Fang",
+          "price_m": 2.0,
+          "description": "Farming Vampire Fang material.",
+          "prerequisites": "Second Sea access required.",
+          "status": "active"
+        },
+        {
+          "id": "mat_scrap_metal",
+          "name": "Scrap Metal",
+          "price_m": 0.1,
+          "description": "Farming Scrap Metal (100K estimated trade value).",
+          "prerequisites": "First Sea access required.",
+          "status": "active"
+        },
+        {
+          "id": "mat_other",
+          "name": "Other Materials",
+          "price_m": 1.0,
+          "description": "Other NPC materials (approx 150K - 1.5M trade value).",
+          "prerequisites": "Depends on material.",
+          "status": "draft",
+          "notes": "Staff must confirm exact item and price with customer."
+        }
+      ]
+    },
+    {
+      "id": "bosses",
+      "name": "Bosses",
+      "description": "High tier boss spawns and carries",
+      "services": [
+        {
+          "id": "boss_dough_king",
+          "name": "Dough King",
+          "price_m": 75.0,
+          "description": "Spawning and defeating Dough King for Mirror Fractal and Red Key.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "boss_cake_prince",
+          "name": "Cake Prince",
+          "price_m": 60.0,
+          "description": "Spawning and defeating Cake Prince.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "boss_tyrant_skies",
+          "name": "Tyrant of the Skies",
+          "price_m": 75.0,
+          "description": "Spawning and defeating Tyrant of the Skies.",
+          "prerequisites": "Third Sea access.",
+          "status": "draft",
+          "notes": "Handwritten price appears to be 75M; verify before publishing."
+        },
+        {
+          "id": "boss_darkbeard",
+          "name": "Darkbeard",
+          "price_m": 55.0,
+          "description": "Fist of Darkness summon and Darkbeard defeat.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "accessories",
+      "name": "Accessories",
+      "description": "Rare drops and boss accessories",
+      "services": [
+        {
+          "id": "acc_swan_glasses",
+          "name": "Swan Glasses",
+          "price_m": 35.0,
+          "description": "Don Swan drop carry.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "acc_pale_scarf",
+          "name": "Pale Scarf",
+          "price_m": 50.0,
+          "description": "Cake Prince / Dough King drop carry.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "acc_choppa",
+          "name": "Choppa Hat",
+          "price_m": 5.0,
+          "description": "Choppa accessory obtainment.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "acc_top_hat",
+          "name": "Top Hat",
+          "price_m": 5.0,
+          "description": "Top Hat accessory obtainment.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "acc_pilot_helmet",
+          "name": "Pilot Helmet",
+          "price_m": 15.0,
+          "description": "Captain Elephant drop carry.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "swords",
+      "name": "Swords",
+      "description": "Mythical and legendary sword quests",
+      "services": [
+        {
+          "id": "sword_ttk",
+          "name": "True Triple Katana (TTK)",
+          "price_m": 150.0,
+          "description": "Obtaining all 3 legendary swords and crafting TTK.",
+          "prerequisites": "Customer must have required Beli; money-farming is NOT included.",
+          "status": "active"
+        },
+        {
+          "id": "sword_shark_anchor",
+          "name": "Shark Anchor",
+          "price_m": 125.0,
+          "description": "Crafting Monster Magnet and defeating Terror Shark for Shark Anchor.",
+          "prerequisites": "Required craft materials are included in service.",
+          "status": "active"
+        },
+        {
+          "id": "sword_rengoku",
+          "name": "Rengoku",
+          "price_m": 75.0,
+          "description": "Hidden key farming and Rengoku sword obtainment.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "sword_yama",
+          "name": "Yama",
+          "price_m": 90.0,
+          "description": "30 Elite Hunter or Player Hunter quests and Yama pull.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "progression",
+      "name": "Quests & Progression",
+      "description": "Race upgrades, belts, and level grinding",
+      "services": [
+        {
+          "id": "prog_cursed_ship",
+          "name": "Cursed Ship Quest",
+          "price_m": 30.0,
+          "description": "Cursed ship ectoplasm and boss carries.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "prog_v2_race",
+          "name": "V2 Race Quest",
+          "price_m": 35.0,
+          "description": "Alchemist flower collection and V2 upgrade.",
+          "prerequisites": "Level 500+ and 500K Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_human_v3",
+          "name": "Human V3",
+          "price_m": 15.0,
+          "description": "Arowe quest: defeat Diamond, Jeremy, and Fajita.",
+          "prerequisites": "V2 Race and 2M Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_angel_v3",
+          "name": "Angel V3",
+          "price_m": 20.0,
+          "description": "Arowe quest: defeat another Angel race player.",
+          "prerequisites": "V2 Race and 2M Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_ghoul_v3",
+          "name": "Ghoul V3",
+          "price_m": 15.0,
+          "description": "Arowe quest: kill 5 players.",
+          "prerequisites": "Ghoul V2 and 2M Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_shark_v3",
+          "name": "Shark V3",
+          "price_m": 10.0,
+          "description": "Arowe quest: defeat a Sea Beast.",
+          "prerequisites": "Shark V2 and 2M Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_mink_v3",
+          "name": "Mink V3",
+          "price_m": 5.0,
+          "description": "Arowe quest: collect 30 chests.",
+          "prerequisites": "Mink V2 and 2M Beli.",
+          "status": "active"
+        },
+        {
+          "id": "prog_bartilo",
+          "name": "Bartilo Quest",
+          "price_m": 20.0,
+          "description": "Swan Pirates, Jeremy, and Colosseum puzzle.",
+          "prerequisites": "Level 850+.",
+          "status": "active"
+        },
+        {
+          "id": "prog_ghoul_v1",
+          "name": "Ghoul V1",
+          "price_m": 90.0,
+          "description": "Hellfire Torch from Cursed Captain + 100 Ectoplasm.",
+          "prerequisites": "Level 1000+.",
+          "status": "active"
+        },
+        {
+          "id": "prog_cyborg_v1",
+          "name": "Cyborg V1",
+          "price_m": 150.0,
+          "description": "Cyborg race unlock with Fist of Darkness (F.O.D.) included.",
+          "prerequisites": "Law raid core brain and Fist of Darkness.",
+          "status": "draft",
+          "notes": "F.O.D. included; verify abbreviation and exact terms before publishing."
+        },
+        {
+          "id": "prog_v2_v3_bundle",
+          "name": "V2 + V3 Bundle",
+          "price_m": 40.0,
+          "description": "Combined V2 and V3 race upgrades.",
+          "prerequisites": "V1 Race.",
+          "status": "draft",
+          "notes": "Price range is 35M - 50M; staff confirms final rate."
+        },
+        {
+          "id": "prog_v4_bundle_ghoul",
+          "name": "V4 + V2 + V3 (Ghoul)",
+          "price_m": 130.0,
+          "description": "Complete Ghoul progression bundle.",
+          "prerequisites": "Ghoul unlocked.",
+          "status": "active"
+        },
+        {
+          "id": "prog_v4_bundle_cyborg",
+          "name": "V4 + V2 + V3 (Cyborg)",
+          "price_m": 175.0,
+          "description": "Complete Cyborg progression bundle.",
+          "prerequisites": "Cyborg unlocked.",
+          "status": "active"
+        },
+        {
+          "id": "prog_draco_belts",
+          "name": "Draco Belts (3 Belts)",
+          "price_m": 45.0,
+          "description": "Obtaining all 3 Draco belts.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "prog_black_belt",
+          "name": "Black Belt",
+          "price_m": 50.0,
+          "description": "Black belt quest and obtainment.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "prog_skull_guitar",
+          "name": "Soul Guitar Puzzle",
+          "price_m": 100.0,
+          "description": "Haunted Castle Full Moon puzzle solution.",
+          "prerequisites": "Level 2300+; crafting materials are NOT included.",
+          "status": "active"
+        },
+        {
+          "id": "prog_level_1",
+          "name": "Level 1 Boost",
+          "price_m": 1.0,
+          "description": "Leveling increment service.",
+          "prerequisites": "None.",
+          "status": "active"
+        },
+        {
+          "id": "prog_level_50",
+          "name": "Level 50 Boost",
+          "price_m": 40.0,
+          "description": "50 levels power grinding.",
+          "prerequisites": "None.",
+          "status": "active"
+        },
+        {
+          "id": "prog_level_100",
+          "name": "Level 100 Boost",
+          "price_m": 70.0,
+          "description": "100 levels power grinding.",
+          "prerequisites": "None.",
+          "status": "draft",
+          "notes": "Handwritten rate unclear; verify before publishing."
+        },
+        {
+          "id": "prog_level_300",
+          "name": "Level 300 Boost",
+          "price_m": 175.0,
+          "description": "300 levels power grinding.",
+          "prerequisites": "None.",
+          "status": "active"
+        },
+        {
+          "id": "prog_upgrade_acc",
+          "name": "Upgrade Accessories",
+          "price_m": 50.0,
+          "description": "Blacksmith accessory upgrades.",
+          "prerequisites": "Materials must be available.",
+          "status": "draft",
+          "notes": "Custom quote; contact staff."
+        }
+      ]
+    },
+    {
+      "id": "sea_events",
+      "name": "Sea Events",
+      "description": "Ship hunting, Leviathan, Kitsune, and Mirage",
+      "services": [
+        {
+          "id": "sea_kitsune",
+          "name": "Kitsune Shrine",
+          "price_m": 40.0,
+          "description": "Full moon Kitsune Island event carry & azure embers.",
+          "prerequisites": "Danger Level 6 sea access.",
+          "status": "active"
+        },
+        {
+          "id": "sea_ph",
+          "name": "PH Service",
+          "price_m": 50.0,
+          "description": "PH sea event carry.",
+          "prerequisites": "Third Sea access.",
+          "status": "draft",
+          "notes": "Confirm meaning of PH abbreviation with owner."
+        },
+        {
+          "id": "sea_ph_magnets",
+          "name": "PH (with magnets)",
+          "price_m": 30.0,
+          "description": "PH sea event carry when customer provides Monster Magnets.",
+          "prerequisites": "Customer must have magnets.",
+          "status": "draft",
+          "notes": "Confirm meaning of PH abbreviation with owner."
+        },
+        {
+          "id": "sea_leviathan",
+          "name": "Leviathan",
+          "price_m": 145.0,
+          "description": "Leviathan hunting, defeat, and heart/scale collection.",
+          "prerequisites": "Beast Hunter ship recommended.",
+          "status": "active"
+        },
+        {
+          "id": "sea_terror_shark",
+          "name": "Terror Shark",
+          "price_m": 20.0,
+          "description": "Hunting and defeating Terror Shark.",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "sea_mirage_no_gear",
+          "name": "Mirage Island (No Blue Gear)",
+          "price_m": 75.0,
+          "description": "Finding Mirage Island (Blue Gear NOT included).",
+          "prerequisites": "Third Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "sea_mirage_with_gear",
+          "name": "Mirage Island (Blue Gear Included)",
+          "price_m": 100.0,
+          "description": "Finding Mirage Island, moon resonance, and Blue Gear find.",
+          "prerequisites": "Mirror Fractal and Third Sea access.",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "id": "raids",
+      "name": "Raids",
+      "description": "Fruit awakening raids and fragment farming",
+      "services": [
+        {
+          "id": "raid_flame_full",
+          "name": "Flame Full Awakening",
+          "price_m": 15.0,
+          "description": "All Flame awakening raids (fragments not included).",
+          "prerequisites": "Customer provides raid chips or fragments.",
+          "status": "active"
+        },
+        {
+          "id": "raid_dough_full",
+          "name": "Dough Full Awakening",
+          "price_m": 30.0,
+          "description": "Advanced Dough raid carries for full awakening.",
+          "prerequisites": "Dough microchips unlocked.",
+          "status": "draft",
+          "notes": "Confirm prerequisites and exclusions with staff before publishing."
+        },
+        {
+          "id": "raid_other",
+          "name": "Other Raids",
+          "price_m": 20.0,
+          "description": "Custom awakening raids.",
+          "prerequisites": "Second or Third Sea access.",
+          "status": "draft",
+          "notes": "15M - 30M; custom quote with staff."
+        },
+        {
+          "id": "raid_3",
+          "name": "3 Normal Raids",
+          "price_m": 7.0,
+          "description": "3 standard raid carries.",
+          "prerequisites": "Level 1100+.",
+          "status": "active"
+        },
+        {
+          "id": "raid_5",
+          "name": "5 Normal Raids",
+          "price_m": 10.0,
+          "description": "5 standard raid carries.",
+          "prerequisites": "Level 1100+.",
+          "status": "active"
+        },
+        {
+          "id": "raid_10",
+          "name": "10 Normal Raids",
+          "price_m": 17.0,
+          "description": "10 standard raid carries.",
+          "prerequisites": "Level 1100+.",
+          "status": "active"
+        },
+        {
+          "id": "raid_20",
+          "name": "20 Normal Raids",
+          "price_m": 30.0,
+          "description": "20 standard raid carries.",
+          "prerequisites": "Level 1100+.",
+          "status": "active"
+        },
+        {
+          "id": "raid_low",
+          "name": "Low Raids",
+          "price_m": 2.5,
+          "description": "Easy raid tier carry.",
+          "prerequisites": "Level 1100+.",
+          "status": "draft",
+          "notes": "Clarify eligible raid types (Flame, Ice, Sand, Light) before publishing."
+        },
+        {
+          "id": "raid_core_break",
+          "name": "Raids Until Core Break",
+          "price_m": 70.0,
+          "description": "Carrying raids until core break is reached.",
+          "prerequisites": "Advanced raid access.",
+          "status": "draft",
+          "notes": "Clarify exact scope and prerequisites with owner."
+        }
+      ]
+    },
+    {
+      "id": "dungeons",
+      "name": "Dungeons",
+      "description": "Dungeon clears and rewards",
+      "services": [
+        {
+          "id": "dungeon_normal",
+          "name": "Normal Dungeon",
+          "price_m": 35.0,
+          "description": "Normal difficulty dungeon clear.",
+          "prerequisites": "Second Sea access.",
+          "status": "active"
+        },
+        {
+          "id": "dungeon_hard",
+          "name": "Hard Dungeon",
+          "price_m": 50.0,
+          "description": "Hard difficulty dungeon clear.",
+          "prerequisites": "Third Sea access.",
+          "status": "draft",
+          "notes": "Handwritten rate appears to be 50M; confirm before publishing."
+        },
+        {
+          "id": "dungeon_challenging",
+          "name": "Challenging Dungeon",
+          "price_m": 75.0,
+          "description": "Challenging difficulty dungeon clear.",
+          "prerequisites": "Third Sea access.",
+          "status": "draft",
+          "notes": "Custom quote; contact staff."
+        }
+      ]
+    },
+    {
+      "id": "currency",
+      "name": "Currency (Beli)",
+      "description": "In-game Beli farming services",
+      "services": [
+        {
+          "id": "curr_1m_beli",
+          "name": "1M Beli Farming",
+          "price_m": 5.0,
+          "description": "Farming 1,000,000 Beli (5M estimated trade value).",
+          "prerequisites": "Customer must have Sea Beasts / quests unlocked.",
+          "status": "active"
+        },
+        {
+          "id": "curr_10m_beli",
+          "name": "10M Beli Farming",
+          "price_m": 45.0,
+          "description": "Farming 10,000,000 Beli (45M estimated trade value).",
+          "prerequisites": "Customer must have Sea Beasts / quests unlocked.",
+          "status": "draft",
+          "notes": "Handwritten rate appears to be 45M; confirm before publishing."
+        }
+      ]
+    }
+  ]
+}

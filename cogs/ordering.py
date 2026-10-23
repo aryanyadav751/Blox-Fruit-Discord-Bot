@@ -11,8 +11,8 @@ Handles:
     5. Order details Modal (Roblox username, timezone, proposed item offer)
     6. Confirmation summary card
 - Unique persistent order ID generation (BFS-XXXX)
-- SQLite order creation & private staff thread spawning
-- Customer DM notifications with blocked-DM fallback handling
+- SQLite order creation FIRST, then safe staff thread dispatch
+- Resilient recovery if Discord thread or customer DM fails
 """
 
 import discord
@@ -20,11 +20,14 @@ from discord import app_commands
 from discord.ext import commands
 from typing import Dict, List, Optional
 import json
+import logging
 
 from config import Config
 from core.calculator import calculate_payment, format_m, PaymentPlan, PaymentMethod
 from core.catalog import catalog, Category, Service
 from core.database import db
+
+logger = logging.getLogger("OrderingCog")
 
 
 class OrderDetailsModal(discord.ui.Modal, title="Blox Fruit Services - Order Details"):
@@ -67,7 +70,7 @@ class OrderDetailsModal(discord.ui.Modal, title="Blox Fruit Services - Order Det
         self.methods = methods
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Calculate payment breakdown
+        # Calculate payment breakdown using Decimal precision
         breakdown = calculate_payment(self.service.price_m, self.plan)
 
         # Show ephemeral confirmation card
@@ -148,7 +151,7 @@ class OrderConfirmationView(discord.ui.View):
         # 1. Generate unique persistent Order ID (e.g. BFS-1042)
         order_id = await db.get_next_order_id()
 
-        # 2. Save order to SQLite
+        # 2. Save order to SQLite FIRST so order is NEVER lost even if Discord calls fail
         method_str = json.dumps([m.value for m in self.methods])
         await db.create_order(
             order_id=order_id,
@@ -177,7 +180,6 @@ class OrderConfirmationView(discord.ui.View):
         staff_msg = None
 
         if staff_channel and isinstance(staff_channel, (discord.TextChannel, discord.ForumChannel)):
-            # Build staff embed
             staff_embed = discord.Embed(
                 title=f"📦 New Order: `{order_id}` — {self.service.name}",
                 description=f"A new service request has been placed by {interaction.user.mention}.",
@@ -209,26 +211,28 @@ class OrderConfirmationView(discord.ui.View):
             staff_embed.add_field(name="Customer Proposed Offer", value=f"```{self.proposed_offer}```", inline=False)
 
             try:
-                # Import staff thread view
                 from cogs.staff_controls import StaffOrderThreadView
 
                 staff_view = StaffOrderThreadView(order_id=order_id, plan=self.plan)
                 staff_msg = await staff_channel.send(embed=staff_embed)
 
-                # Create private or public thread for this order
+                # Attempt private thread creation
                 thread_name = f"order-{order_id.lower()}"
                 try:
                     thread = await staff_msg.create_thread(
                         name=thread_name,
                         auto_archive_duration=1440,
                     )
-                except Exception:
-                    # Fallback to creating thread directly on channel
-                    thread = await staff_channel.create_thread(
-                        name=thread_name,
-                        type=discord.ChannelType.private_thread,
-                        auto_archive_duration=1440,
-                    )
+                except Exception as thread_err:
+                    logger.warning("Could not create thread on message: %s. Attempting fallback.", thread_err)
+                    try:
+                        thread = await staff_channel.create_thread(
+                            name=thread_name,
+                            type=discord.ChannelType.private_thread,
+                            auto_archive_duration=1440,
+                        )
+                    except Exception as private_err:
+                        logger.error("Could not create private thread (%s). Attaching controls directly to message.", private_err)
 
                 if thread:
                     await thread.send(
@@ -237,8 +241,14 @@ class OrderConfirmationView(discord.ui.View):
                         view=staff_view,
                     )
                     await db.set_thread_and_message(order_id, thread.id, staff_msg.id)
+                else:
+                    # Fallback: attach controls to main staff message
+                    await staff_msg.edit(view=staff_view)
+                    await db.set_thread_and_message(order_id, 0, staff_msg.id)
             except Exception as e:
-                print(f"[ERROR] Failed to post staff thread: {e}")
+                logger.error("Failed to post staff channel message: %s", e)
+        else:
+            logger.warning("Staff channel (ID: %s) not configured or not accessible.", staff_channel_id)
 
         # 4. DM customer
         dm_sent = True
@@ -246,7 +256,7 @@ class OrderConfirmationView(discord.ui.View):
             title=f"🎉 Order Received: `{order_id}`",
             description=(
                 f"Thank you for ordering with **Blox Fruit Services**!\n"
-                f"Your order `{order_id}` has been forwarded to our staff team."
+                f"Your order `{order_id}` has been safely recorded and forwarded to our staff team."
             ),
             color=discord.Color.green(),
         )
@@ -276,21 +286,13 @@ class OrderConfirmationView(discord.ui.View):
             await interaction.user.send(embed=dm_embed)
         except (discord.Forbidden, discord.HTTPException):
             dm_sent = False
-            # Log in audit and thread
-            await db.update_order_status(
-                order_id=order_id,
-                new_status="PENDING_ACCEPTANCE",
-                actor_id=interaction.user.id,
-                actor_tag=str(interaction.user),
-                details="Customer DMs are closed/disabled.",
-            )
             if thread:
                 await thread.send(f"⚠️ **Note:** Customer {interaction.user.mention} has direct messages (DMs) disabled.")
 
         # 5. Ephemeral reply
         success_msg = f"✅ Your order **`{order_id}`** has been successfully placed!"
         if not dm_sent:
-            success_msg += "\n⚠️ *Your Discord DMs appear to be closed. Please enable DMs or keep an eye on staff announcements.*"
+            success_msg += "\n⚠️ *Your Discord DMs appear to be closed. Please enable DMs or contact staff with your Order ID.*"
         else:
             success_msg += "\n📬 A confirmation message has been sent to your Direct Messages (DMs)."
 
@@ -303,12 +305,6 @@ class OrderConfirmationView(discord.ui.View):
 
 
 class PaymentPreferenceView(discord.ui.View):
-    """
-    Step 3: Lets customer configure:
-    - Part 3A: Payment Plan (50/50 vs One-Time Full)
-    - Part 3B: Payment Method (Fruits, Gamepass, Combination)
-    """
-
     def __init__(self, category: Category, service: Service):
         super().__init__(timeout=180)
         self.category = category
@@ -336,7 +332,6 @@ class PaymentPreferenceView(discord.ui.View):
     )
     async def select_plan(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.selected_plan = PaymentPlan(select.values[0])
-        # Update options default state
         for opt in select.options:
             opt.default = opt.value == select.values[0]
         await interaction.response.edit_message(view=self)
@@ -382,13 +377,10 @@ class PaymentPreferenceView(discord.ui.View):
 
 
 class ServiceSelectView(discord.ui.View):
-    """Step 2: Service select dropdown for the chosen category."""
-
     def __init__(self, category: Category):
         super().__init__(timeout=180)
         self.category = category
 
-        # Add select menu for active services
         services = category.active_services()
         options = [
             discord.SelectOption(
@@ -413,7 +405,6 @@ class ServiceSelectView(discord.ui.View):
             await interaction.response.send_message("Service not found.", ephemeral=True)
             return
 
-        # Show service info and proceed to payment preference step
         embed = discord.Embed(
             title=f"Service: {service.name}",
             description=service.description or "No description provided.",
@@ -439,8 +430,6 @@ class ServiceSelectView(discord.ui.View):
 
 
 class CategorySelectView(discord.ui.View):
-    """Step 1: Category selection dropdown."""
-
     def __init__(self):
         super().__init__(timeout=180)
         categories = catalog.get_active_categories()
@@ -476,10 +465,8 @@ class CategorySelectView(discord.ui.View):
 
 
 class PublicOrderPanelView(discord.ui.View):
-    """Persistent view with the '🛒 Order Now' button for #order-here channel."""
-
     def __init__(self):
-        super().__init__(timeout=None)  # Persistent view
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Order Now",

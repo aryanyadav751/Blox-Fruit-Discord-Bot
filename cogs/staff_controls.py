@@ -1,9 +1,10 @@
 """
 Blox Fruit Services - Staff Controls & Thread Management Cog.
 Handles:
-- Server-side authorization checks for staff and admin roles
+- Server-side authorization checks for staff and admin roles across views and modals
 - Interactive buttons inside private order threads (#order-bfs-xxxx)
 - Payment verification modals (Upfront deposit vs Remaining balance)
+- State machine transition enforcement and over-crediting prevention
 - Real-time customer DMs upon status transitions (with blocked DM resilience)
 - Comprehensive audit trails and persistent order updates
 """
@@ -11,9 +12,10 @@ Handles:
 import discord
 from discord.ext import commands
 from typing import Optional, Dict, Any
+from decimal import Decimal
 
 from config import Config
-from core.calculator import format_m, PaymentPlan
+from core.calculator import format_m, PaymentPlan, to_decimal
 from core.database import db
 
 
@@ -75,30 +77,36 @@ class RecordPaymentModal(discord.ui.Modal):
         self.parent_view = parent_view
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Strict server-side authorization check inside modal callback
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
+
         # Validate credited value
         try:
-            val_m = float(self.credited_value_m.value.strip().replace("M", "").replace("m", ""))
-            if val_m <= 0:
+            val_str = self.credited_value_m.value.strip().replace("M", "").replace("m", "")
+            val_dec = to_decimal(val_str)
+            if val_dec <= Decimal("0"):
                 raise ValueError()
-        except ValueError:
+        except Exception:
             await interaction.response.send_message("❌ Invalid amount. Please enter a positive number in M.", ephemeral=True)
             return
 
         await interaction.response.defer()
 
-        # Update database
-        updated_order = await db.record_payment(
-            order_id=self.order_id,
-            payment_stage=self.stage,
-            items_received=self.items_received.value.strip(),
-            credited_value_m=val_m,
-            staff_id=interaction.user.id,
-            staff_tag=str(interaction.user),
-            notes=self.notes.value.strip() if self.notes.value else "",
-        )
-
-        if not updated_order:
-            await interaction.followup.send("❌ Error: Order not found in database.", ephemeral=True)
+        # Update database with state and over-crediting validation
+        try:
+            updated_order = await db.record_payment(
+                order_id=self.order_id,
+                payment_stage=self.stage,
+                items_received=self.items_received.value.strip(),
+                credited_value_m=val_dec,
+                staff_id=interaction.user.id,
+                staff_tag=str(interaction.user),
+                notes=self.notes.value.strip() if self.notes.value else "",
+            )
+        except ValueError as err:
+            await interaction.followup.send(f"❌ Payment verification rejected: {err}", ephemeral=True)
             return
 
         # Notify thread
@@ -109,9 +117,10 @@ class RecordPaymentModal(discord.ui.Modal):
             color=discord.Color.green(),
         )
         payment_embed.add_field(name="Items Received", value=f"`{self.items_received.value}`", inline=False)
-        payment_embed.add_field(name="Credited Value", value=f"**{format_m(val_m)}**", inline=True)
+        payment_embed.add_field(name="Credited Value", value=f"**{format_m(val_dec)}**", inline=True)
         payment_embed.add_field(name="Total Initial Paid", value=f"{format_m(updated_order['initial_payment_paid_m'])}", inline=True)
         payment_embed.add_field(name="Total Balance Paid", value=f"{format_m(updated_order['balance_paid_m'])}", inline=True)
+        payment_embed.add_field(name="New Status", value=f"`{updated_order['status']}`", inline=True)
         if self.notes.value:
             payment_embed.add_field(name="Notes", value=self.notes.value, inline=False)
 
@@ -121,7 +130,7 @@ class RecordPaymentModal(discord.ui.Modal):
         customer_embed = discord.Embed(
             title=f"💰 Payment Verified for Order `{self.order_id}`",
             description=(
-                f"Your payment of **{format_m(val_m)}** ({self.items_received.value}) has been verified by staff!\n"
+                f"Your payment of **{format_m(val_dec)}** ({self.items_received.value}) has been verified by staff!\n"
                 f"**Service:** {updated_order['service_name']}"
             ),
             color=discord.Color.green(),
@@ -149,6 +158,10 @@ class RequestInfoModal(discord.ui.Modal):
         self.order_id = order_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
+
         order = await db.get_order(self.order_id)
         if not order:
             await interaction.response.send_message("Order not found.", ephemeral=True)
@@ -184,6 +197,7 @@ class RequestInfoModal(discord.ui.Modal):
             actor_id=interaction.user.id,
             actor_tag=str(interaction.user),
             details=f"Requested info: {self.message_text.value}",
+            force=True,
         )
         await interaction.followup.send("✅ Info request dispatched to customer.", ephemeral=True)
 
@@ -203,6 +217,10 @@ class CancelOrderModal(discord.ui.Modal):
         self.order_id = order_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Unauthorized: Staff permissions required.", ephemeral=True)
+            return
+
         order = await db.get_order(self.order_id)
         if not order:
             await interaction.response.send_message("Order not found.", ephemeral=True)
@@ -210,13 +228,17 @@ class CancelOrderModal(discord.ui.Modal):
 
         await interaction.response.defer()
 
-        updated_order = await db.cancel_order(
-            order_id=self.order_id,
-            actor_id=interaction.user.id,
-            actor_tag=str(interaction.user),
-            reason=self.reason.value.strip(),
-            is_rejection=(order["status"] == "PENDING_ACCEPTANCE"),
-        )
+        try:
+            updated_order = await db.cancel_order(
+                order_id=self.order_id,
+                actor_id=interaction.user.id,
+                actor_tag=str(interaction.user),
+                reason=self.reason.value.strip(),
+                is_rejection=(order["status"] == "PENDING_ACCEPTANCE"),
+            )
+        except ValueError as err:
+            await interaction.followup.send(f"❌ Cannot cancel: {err}", ephemeral=True)
+            return
 
         # Notify thread
         cancel_embed = discord.Embed(
@@ -267,7 +289,7 @@ class StaffOrderThreadView(discord.ui.View):
             self.mark_completed_button.label = "Complete & Close Order"
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if not isinstance(interaction.user, discord.Member) or not is_staff(interaction.user):
+        if not is_staff(interaction.user):
             await interaction.response.send_message(
                 "⛔ Unauthorized: Only authorized Blox Fruit Services staff may use these controls.",
                 ephemeral=True,
@@ -282,21 +304,21 @@ class StaffOrderThreadView(discord.ui.View):
             await interaction.response.send_message("Order not found.", ephemeral=True)
             return
 
-        if order["status"] in ["CANCELLED", "REJECTED", "PAID_AND_CLOSED"]:
-            await interaction.response.send_message(f"Order is already {order['status']}.", ephemeral=True)
-            return
-
         await interaction.response.defer()
 
         new_status = "AWAITING_UPFRONT_PAYMENT"
-        await db.update_order_status(
-            order_id=self.order_id,
-            new_status=new_status,
-            actor_id=interaction.user.id,
-            actor_tag=str(interaction.user),
-            details="Staff accepted order and initiated payment coordination",
-            assigned_staff_id=interaction.user.id,
-        )
+        try:
+            await db.update_order_status(
+                order_id=self.order_id,
+                new_status=new_status,
+                actor_id=interaction.user.id,
+                actor_tag=str(interaction.user),
+                details="Staff accepted order and initiated payment coordination",
+                assigned_staff_id=interaction.user.id,
+            )
+        except ValueError as err:
+            await interaction.followup.send(f"❌ Cannot accept order: {err}", ephemeral=True)
+            return
 
         embed = discord.Embed(
             title=f"✅ Order Accepted: `{self.order_id}`",
@@ -344,13 +366,17 @@ class StaffOrderThreadView(discord.ui.View):
 
         await interaction.response.defer()
 
-        await db.update_order_status(
-            order_id=self.order_id,
-            new_status="IN_PROGRESS",
-            actor_id=interaction.user.id,
-            actor_tag=str(interaction.user),
-            details="Staff marked service as in progress",
-        )
+        try:
+            await db.update_order_status(
+                order_id=self.order_id,
+                new_status="IN_PROGRESS",
+                actor_id=interaction.user.id,
+                actor_tag=str(interaction.user),
+                details="Staff marked service as in progress",
+            )
+        except ValueError as err:
+            await interaction.followup.send(f"❌ Cannot start service: {err}", ephemeral=True)
+            return
 
         await interaction.channel.send(f"⚔️ Order `{self.order_id}` is now **IN PROGRESS** (handled by {interaction.user.mention}).")
 
@@ -378,13 +404,18 @@ class StaffOrderThreadView(discord.ui.View):
         # If one-time full payment, close order directly
         if order["payment_plan"] == PaymentPlan.FULL_UPFRONT.value:
             new_status = "PAID_AND_CLOSED"
-            await db.update_order_status(
-                order_id=self.order_id,
-                new_status=new_status,
-                actor_id=interaction.user.id,
-                actor_tag=str(interaction.user),
-                details="Service completed and order closed (full upfront plan)",
-            )
+            try:
+                await db.update_order_status(
+                    order_id=self.order_id,
+                    new_status=new_status,
+                    actor_id=interaction.user.id,
+                    actor_tag=str(interaction.user),
+                    details="Service completed and order closed (full upfront plan)",
+                )
+            except ValueError as err:
+                await interaction.followup.send(f"❌ Cannot complete order: {err}", ephemeral=True)
+                return
+
             await interaction.channel.send(f"🎉 Order `{self.order_id}` is **COMPLETED & CLOSED**! Thank you for your service.")
 
             dm_embed = discord.Embed(
@@ -394,13 +425,18 @@ class StaffOrderThreadView(discord.ui.View):
             )
         else:
             new_status = "COMPLETED_AWAITING_BALANCE"
-            await db.update_order_status(
-                order_id=self.order_id,
-                new_status=new_status,
-                actor_id=interaction.user.id,
-                actor_tag=str(interaction.user),
-                details="Service completed; awaiting remaining 50% balance",
-            )
+            try:
+                await db.update_order_status(
+                    order_id=self.order_id,
+                    new_status=new_status,
+                    actor_id=interaction.user.id,
+                    actor_tag=str(interaction.user),
+                    details="Service completed; awaiting remaining 50% balance",
+                )
+            except ValueError as err:
+                await interaction.followup.send(f"❌ Cannot complete order: {err}", ephemeral=True)
+                return
+
             await interaction.channel.send(
                 f"🎉 Service for `{self.order_id}` completed! Status is now **AWAITING REMAINING BALANCE** ({format_m(order['balance_remaining_m'])})."
             )

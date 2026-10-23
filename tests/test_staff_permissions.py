@@ -6,7 +6,7 @@ Tests for staff permission logic:
 """
 
 from unittest.mock import MagicMock
-from cogs.staff_controls import is_staff
+from core.permissions import is_staff
 from config import Config
 
 
